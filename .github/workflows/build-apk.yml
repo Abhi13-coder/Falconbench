@@ -1,0 +1,43 @@
+name: Build FalconBench APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          yes | sdkmanager "ndk;27.2.12479018" "cmake;3.22.1" "platform-tools" "platforms;android-35" || true
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> $GITHUB_ENV
+
+      - name: Clone llama.cpp
+        run: |
+          mkdir -p app/src/main/cpp/third_party
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git \
+            app/src/main/cpp/third_party/llama.cpp
+
+      - name: Wrapper + build
+        run: |
+          gradle wrapper --gradle-version 8.11.1
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FalconBench-debug
+          path: app/build/outputs/apk/debug/*.apk
